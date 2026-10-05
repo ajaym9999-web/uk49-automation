@@ -1,50 +1,50 @@
 {
   "lunchtime": {
     "balls": [
-      7,
-      17,
-      22,
-      24,
-      34,
-      39
+      5,
+      11,
+      20,
+      27,
+      42,
+      47
     ],
-    "booster": 11,
+    "booster": 31,
     "date": "05 October 2026"
   },
   "teatime": {
     "balls": [
-      7,
-      17,
-      22,
-      24,
-      34,
-      39
+      5,
+      11,
+      20,
+      27,
+      42,
+      47
     ],
-    "booster": 11,
+    "booster": 31,
     "date": "05 October 2026"
   },
   "brunchtime": {
     "balls": [
-      7,
-      17,
-      22,
-      24,
-      34,
-      39
+      5,
+      11,
+      20,
+      27,
+      42,
+      47
     ],
-    "booster": 11,
+    "booster": 31,
     "date": "05 October 2026"
   },
   "drivetime": {
     "balls": [
-      7,
-      17,
-      22,
-      24,
-      34,
-      39
+      5,
+      11,
+      20,
+      27,
+      42,
+      47
     ],
-    "booster": 11,
+    "booster": 31,
     "date": "05 October 2026"
   }
 }
