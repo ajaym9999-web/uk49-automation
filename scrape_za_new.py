@@ -1,5 +1,4 @@
-import os, re, json, base64, requests
-from bs4 import BeautifulSoup
+import os, re, json, base64, requests, time
 from datetime import datetime
 import pytz
 
@@ -17,103 +16,94 @@ SOURCES = {
  "drivetime": "https://za.national-lottery.com/uk-49s/results/drivetime",
 }
 
-def parse_concatenated(s):
-    # e.g. "7101640474819" -> try to split into 7 numbers 1-49
-    s = re.sub(r'\D','', s)
-    res=[]
-    i=0
-    while i < len(s) and len(res)<7:
-        # try 2-digit if <=49 and not leading zero weird
-        if i+1 < len(s):
-            two = int(s[i:i+2])
-            if 1 <= two <= 49:
-                # lookahead: if remaining chars can make remaining numbers
-                remaining = 7 - len(res) -1
-                remaining_chars = len(s) - (i+2)
-                if remaining <= remaining_chars <= remaining*2:
+def extract_real(html):
+    # method: split lines and collect "- number" pattern
+    lines = re.split(r'[\r\n]+', html)
+    nums = []
+    date_found = ""
+    for line in lines:
+        # date
+        mdate = re.search(r'(Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday),?\s+\d{1,2}\s+\w+\s+\d{4}', line)
+        if mdate and not date_found:
+            date_found = mdate.group(0)
+        # dash number like "- 5" or ">5<" inside tag
+        # clean tags
+        clean = re.sub(r'<[^>]+>', ' ', line)
+        mdash = re.search(r'-\s*(\d{1,2})\s*$', clean.strip())
+        if mdash:
+            v = int(mdash.group(1))
+            if 1 <= v <= 49:
+                nums.append(v)
+        if len(nums) >= 7:
+            break
+    if len(nums) >= 7:
+        return {"balls": sorted(nums[:6]), "booster": nums[6], "date": date_found or now.strftime("%d %B %Y")}
+
+    # fallback: try to find long concatenated number in table
+    text = re.sub(r'<[^>]+>', ' ', html)
+    for long_num in re.findall(r'\b\d{8,20}\b', text):
+        # try split into 7 numbers 1-49
+        s = long_num
+        res=[]
+        i=0
+        while i < len(s) and len(res)<7:
+            if i+1 < len(s):
+                two = int(s[i:i+2])
+                if 1 <= two <= 49 and len(s)-(i+2) >= (7-len(res)-1):
                     res.append(two)
                     i+=2
                     continue
-        one = int(s[i])
-        if 1 <= one <= 49:
-            res.append(one)
+            res.append(int(s[i]))
             i+=1
-        else:
-            i+=1
-    if len(res)>=7:
-        return res[:6], res[6]
+        if len(res)>=7 and all(1<=x<=49 for x in res[:7]):
+            return {"balls": sorted(res[:6]), "booster": res[6], "date": date_found or now.strftime("%d %B %Y")}
     return None
 
-def scrape_draw(url):
+def scrape(url):
     headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
-        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-        "Accept-Language": "en-US,en;q=0.9",
-        "Cache-Control": "no-cache",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/122 Safari/537.36",
+        "Accept": "text/html",
         "Referer": "https://za.national-lottery.com/"
     }
     try:
         r = requests.get(url, headers=headers, timeout=25)
-        print(f"GET {url} -> {r.status_code} len={len(r.text)}")
-        if r.status_code != 200:
-            return None
-        soup = BeautifulSoup(r.text, 'html.parser')
-        text = soup.get_text("\n")
-        # 1) Try dash pattern - today's balls
-        nums = re.findall(r"-\s*(\d{1,2})", text)
-        print(f"  dash nums found: {nums[:10]}")
-        if len(nums) >= 7:
-            # first 7 after the date heading - filter 1-49
-            valid = [int(x) for x in nums[:10] if 1 <= int(x) <= 49]
-            if len(valid) >= 7:
-                return {"balls": sorted(valid[:6]), "booster": valid[6], "date": now.strftime("%d %B %Y")}
-
-        # 2) Try history table first row
-        # find table rows with pipe format or html table
-        # Look for pattern like "3 October 2026 | 8141625364335"
-        m = re.search(r"\d+\s+\w+\s+2026\s*\|\s*(\d{6,20})", text)
-        if m:
-            print(f"  table concat found: {m.group(1)}")
-            parsed = parse_concatenated(m.group(1))
-            if parsed:
-                balls, boost = parsed
-                return {"balls": sorted(balls), "booster": boost, "date": now.strftime("%d %B %Y")}
-
-        # 3) Try all long digit strings 12-20 chars in table
-        for long_num in re.findall(r"\b\d{12,20}\b", text):
-            parsed = parse_concatenated(long_num)
-            if parsed:
-                balls, boost = parsed
-                print(f"  parsed long {long_num} -> {balls}+{boost}")
-                return {"balls": sorted(balls), "booster": boost, "date": now.strftime("%d %B %Y")}
-
+        print(f"GET {url} -> {r.status_code} {len(r.text)}")
+        if r.status_code==200:
+            data = extract_real(r.text)
+            print(f"  -> extracted {data}")
+            return data
     except Exception as e:
-        print(f"Scrape exception {url}: {e}")
+        print(f"ERR {url} {e}")
     return None
 
-draws={}
-for k,url in SOURCES.items():
-    d=scrape_draw(url)
-    if d:
-        print(f"{k} LIVE => {d}")
-        draws[k]=d
-    else:
-        print(f"{k} FAILED, using placeholder - will be overwritten next run")
-        draws[k]={"balls":[5,11,20,27,42,47],"booster":31,"date":now.strftime("%d %B %Y")}
+draws = {}
+for k, url in SOURCES.items():
+    d = scrape(url)
+    time.sleep(2)
+    if not d:
+        # if fails, keep None, don't duplicate other draw
+        d = {"balls": [], "booster": None, "date": "Awaiting draw", "empty": True}
+    draws[k]=d
 
-def render_balls(balls, booster):
+print("FINAL DRAWS", draws)
+
+def render_balls(balls, booster, empty=False):
+    if empty or not balls:
+        return '<div style="font-size:11px;color:#991b1b;background:#fef2f2;border:1px solid #fecaca;padding:4px 8px;border-radius:6px">⏳ Awaiting draw – result not published yet</div>'
     b="".join([f'<span style="flex:0 0 auto;width:25px;height:25px;min-width:25px;border-radius:50%;background:#facc15;color:#000;display:inline-flex;align-items:center;justify-content:center;font-weight:800;font-size:11px;border:1px solid #eab308">{n}</span>' for n in balls])
     boost=f'<span style="flex:0 0 auto;width:25px;height:25px;min-width:25px;border-radius:50%;background:#38bdf8;color:#fff;display:inline-flex;align-items:center;justify-content:center;font-weight:800;font-size:11px;border:1px solid #0ea5e9">{booster}</span>'
-    return f'<div style="display:flex;flex-wrap:nowrap;overflow-x:auto;gap:4px;white-space:nowrap;-webkit-overflow-scrolling:touch;scrollbar-width:none;padding:4px 0">{b}<span style="font-weight:800;color:#9ca3af;margin:0 1px">+</span>{boost}</div>'
+    return f'<div style="display:flex;flex-wrap:nowrap;overflow-x:auto;gap:4px;white-space:nowrap;padding:4px 0">{b}<span style="font-weight:800;color:#9ca3af">+</span>{boost}</div>'
 
 cards=""
 for k in ["lunchtime","teatime","brunchtime","drivetime"]:
     d=draws[k]
+    empty = d.get("empty", False) or len(d.get("balls",[]))<6
+    date_str = d.get("date","")
     cards+=f"""
-    <div style="background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:12px;display:flex;flex-direction:column;gap:6px;min-width:0">
-      <div style="display:flex;justify-content:space-between"><div style="font-weight:800;font-size:15px;white-space:nowrap">{k.upper()}</div><div style="font-size:8px;font-weight:700;background:#f0fdf4;border:1px solid #dcfce7;color:#166534;padding:2px 6px;border-radius:999px">SAST Live</div></div>
-      <div style="font-size:10px;color:#64748b">{d['date']}</div>
-      {render_balls(d['balls'], d['booster'])}
+    <div style="background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:12px;display:flex;flex-direction:column;gap:6px">
+      <div style="display:flex;justify-content:space-between"><div style="font-weight:800;font-size:15px">{k.upper()}</div><div style="font-size:8px;background:#f0fdf4;border:1px solid #dcfce7;color:#166534;padding:2px 6px;border-radius:999px">SAST Live</div></div>
+      <div style="font-size:10px;color:#64748b">{date_str}</div>
+      {render_balls(d.get("balls",[]), d.get("booster"), empty)}
       <div style="display:flex;gap:6px;margin-top:6px">
         <a href="/uk49s-{k}-results/" style="flex:1;background:#0F3D2E;color:#fff;text-align:center;text-decoration:none;border-radius:999px;font-size:11px;font-weight:600;padding:6px 0">View Result →</a>
         <a href="/uk49s-{k}-results/#history" style="flex:1;background:#ecfdf5;color:#065f46;border:1px solid #d1fae5;text-align:center;text-decoration:none;border-radius:999px;font-size:11px;font-weight:600;padding:6px 0">History</a>
@@ -136,14 +126,10 @@ if WP_USER and WP_PASS:
     token=base64.b64encode(f"{WP_USER}:{WP_PASS}".encode()).decode()
     headers={"Authorization": f"Basic {token}", "Content-Type":"application/json"}
     try:
-        res=requests.post(f"{WP_URL}/wp-json/wp/v2/pages/6", json={"content": homepage, "status":"publish"}, headers=headers, timeout=20)
+        res=requests.post(f"{WP_URL}/wp-json/wp/v2/pages/6", json={"content": homepage}, headers=headers, timeout=20)
         print(f"WP push {res.status_code}")
-        print(res.text[:400])
     except Exception as e:
         print(f"WP fail {e}")
-else:
-    print("No WP creds")
 
 with open("results.json","w") as f:
     json.dump(draws,f,indent=2)
-print("DONE", draws)
