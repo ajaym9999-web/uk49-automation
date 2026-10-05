@@ -1,50 +1,26 @@
 {
   "lunchtime": {
-    "balls": [
-      5,
-      11,
-      20,
-      27,
-      42,
-      47
-    ],
-    "booster": 31,
-    "date": "05 October 2026"
+    "balls": [],
+    "booster": null,
+    "date": "Awaiting draw",
+    "empty": true
   },
   "teatime": {
-    "balls": [
-      5,
-      11,
-      20,
-      27,
-      42,
-      47
-    ],
-    "booster": 31,
-    "date": "05 October 2026"
+    "balls": [],
+    "booster": null,
+    "date": "Awaiting draw",
+    "empty": true
   },
   "brunchtime": {
-    "balls": [
-      5,
-      11,
-      20,
-      27,
-      42,
-      47
-    ],
-    "booster": 31,
-    "date": "05 October 2026"
+    "balls": [],
+    "booster": null,
+    "date": "Awaiting draw",
+    "empty": true
   },
   "drivetime": {
-    "balls": [
-      5,
-      11,
-      20,
-      27,
-      42,
-      47
-    ],
-    "booster": 31,
-    "date": "05 October 2026"
+    "balls": [],
+    "booster": null,
+    "date": "Awaiting draw",
+    "empty": true
   }
 }
