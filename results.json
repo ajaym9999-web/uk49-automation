@@ -1,0 +1,50 @@
+{
+  "lunchtime": {
+    "balls": [
+      7,
+      17,
+      22,
+      24,
+      34,
+      39
+    ],
+    "booster": 11,
+    "date": "05 October 2026"
+  },
+  "teatime": {
+    "balls": [
+      7,
+      17,
+      22,
+      24,
+      34,
+      39
+    ],
+    "booster": 11,
+    "date": "05 October 2026"
+  },
+  "brunchtime": {
+    "balls": [
+      7,
+      17,
+      22,
+      24,
+      34,
+      39
+    ],
+    "booster": 11,
+    "date": "05 October 2026"
+  },
+  "drivetime": {
+    "balls": [
+      7,
+      17,
+      22,
+      24,
+      34,
+      39
+    ],
+    "booster": 11,
+    "date": "05 October 2026"
+  }
+}
